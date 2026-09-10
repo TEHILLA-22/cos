@@ -1,0 +1,374 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Awaken Christian Community</title>
+    <style>
+        :root { --bg: #0f172a; --card: rgba(30, 41, 59, 0.95); --accent: #38bdf8; --text: #f8fafc; --muted: #94a3b8; }
+        body { font-family: 'Segoe UI', Tahoma, sans-serif; background: linear-gradient(135deg, #0f172a, #1e1b4b); color: var(--text); min-height: 100vh; margin: 0; padding: 20px; display: flex; justify-content: center; }
+        .container { max-width: 800px; width: 100%; }
+        .header { text-align: center; margin-bottom: 20px; }
+        .header h1 { color: var(--accent); margin-bottom: 5px; }
+        .card { background: var(--card); border: 1px solid rgba(255,255,255,0.1); border-radius: 12px; padding: 30px; margin-bottom: 20px; box-shadow: 0 8px 32px rgba(0,0,0,0.3); }
+        .hidden { display: none !important; }
+        .btn { background: var(--accent); color: #0f172a; font-weight: bold; border: none; padding: 12px 24px; border-radius: 8px; cursor: pointer; transition: 0.2s; font-size: 1rem; margin-top: 10px;}
+        .btn:hover { background: #0284c7; color: white; }
+        .btn:disabled { background: var(--muted); cursor: not-allowed; }
+        input, select { width: 100%; padding: 12px; margin: 10px 0; border-radius: 6px; border: 1px solid var(--muted); background: rgba(0,0,0,0.2); color: white; box-sizing: border-box; }
+        .course-tag { display: inline-block; background: rgba(56, 189, 248, 0.15); border: 1px solid var(--accent); padding: 5px 10px; border-radius: 20px; margin-top: 10px; font-size: 0.9rem;}
+        
+        #timer-bar { position: sticky; top: 0; background: #ef4444; color: white; padding: 15px; text-align: center; font-size: 1.5rem; font-weight: bold; border-radius: 8px; margin-bottom: 20px; z-index: 100; box-shadow: 0 4px 15px rgba(239, 68, 68, 0.4);}
+        
+        .q-item { margin-bottom: 25px; padding-bottom: 15px; border-bottom: 1px solid rgba(255,255,255,0.1); }
+        .q-title { font-weight: bold; margin-bottom: 10px; font-size: 1.1rem; }
+        .option-label { display: block; padding: 10px; background: rgba(255,255,255,0.05); border-radius: 6px; cursor: pointer; margin-bottom: 5px;}
+        .option-label:hover { background: rgba(56, 189, 248, 0.15); }
+        .correct { color: #22c55e; font-weight: bold; }
+        .wrong { color: #ef4444; font-weight: bold; }
+        
+        /* History Table Styling */
+        table { width: 100%; border-collapse: collapse; margin-top: 15px; text-align: left; }
+        th, td { padding: 12px; border-bottom: 1px solid rgba(255,255,255,0.1); }
+        th { color: var(--muted); font-weight: 600; text-transform: uppercase; font-size: 0.85rem; }
+
+        #modal-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.8); z-index: 999; display: flex; align-items: center; justify-content: center; }
+        .modal-content { background: #1e293b; padding: 30px; border-radius: 10px; text-align: center; max-width: 400px; border: 2px solid #ef4444; }
+    </style>
+</head>
+<body>
+
+    <div id="modal-overlay" class="hidden">
+        <div class="modal-content">
+            <h2 style="color: #ef4444;">Warning!</h2>
+            <p id="modal-text">Action recorded. Please stay within the quiz tab to maintain academic integrity.</p>
+            <button class="btn" onclick="closeModal()">I Understand</button>
+        </div>
+    </div>
+
+    <div class="container">
+        <div class="header">
+            <h1>Awaken Christian Community</h1>
+            <p>Empowering students with academic excellence grounded in faith.</p>
+        </div>
+
+        <!-- 1. Landing Screen -->
+        <div id="screen-welcome" class="card">
+            <h2>Why We Offer Past Questions</h2>
+            <p style="color: var(--muted); line-height: 1.6;">We believe in equipping our community for success. Preparing with past questions builds confidence, highlights key concepts, and helps you navigate your assessments effectively.</p>
+            
+            <h3 style="margin-top: 25px;">Available Practice Sets:</h3>
+            <div class="course-tag">📚 COS 102.2 - Introduction to Problem Solving</div>
+            <br><br>
+            
+            <div id="auth-section">
+                <button class="btn" onclick="showScreen('screen-register')">Start Quiz Enrollment</button>
+            </div>
+        </div>
+
+        <!-- 2. Registration Screen -->
+        <div id="screen-register" class="card hidden">
+            <h2>Student Details</h2>
+            <p style="color: var(--muted); font-size: 0.9rem;">To track your assessment history, please provide your details. Matriculation numbers are unique.</p>
+            
+            <form id="register-form" onsubmit="handleAuth(event)">
+                <label>Full Name</label>
+                <input type="text" id="reg-name" required>
+                
+                <label>School Department</label>
+                <input type="text" id="reg-dept" required>
+                
+                <label>Matriculation Number</label>
+                <input type="text" id="reg-mat" placeholder="e.g. U2025/5091001" pattern="[uU]\d{4}\/\d{7}" title="Format: U2025/1234567" required>
+                
+                <div id="reg-error" style="color: #ef4444; margin-bottom: 10px;" class="hidden"></div>
+                <button type="submit" class="btn" style="width: 100%;">Next</button>
+            </form>
+        </div>
+
+        <!-- 3. Timer Setup Screen -->
+        <div id="screen-setup" class="card hidden">
+            <h2>Select Quiz Duration</h2>
+            <p>How much time do you need for 35 questions?</p>
+            <select id="time-select">
+                <option value="10">10 Minutes</option>
+                <option value="15">15 Minutes</option>
+                <option value="20" selected>20 Minutes</option>
+                <option value="30">30 Minutes</option>
+            </select>
+            <button class="btn" style="width: 100%;" onclick="startQuiz()">Start Quiz Now</button>
+            <button class="btn" style="width: 100%; background: transparent; border: 1px solid var(--muted); color: var(--text);" onclick="showScreen('screen-welcome')">Back to Home</button>
+        </div>
+
+        <!-- 4. Quiz Screen -->
+        <div id="screen-quiz" class="hidden">
+            <div id="timer-bar">Time Remaining: <span id="time-display">00:00</span></div>
+            <div class="card" id="quiz-container"></div>
+            <button class="btn" style="width: 100%; background: #22c55e;" onclick="submitQuiz()">Submit Assessment</button>
+        </div>
+
+        <!-- 5. Results Screen -->
+        <div id="screen-result" class="card hidden">
+            <div style="text-align: center;">
+                <h2>Assessment Complete</h2>
+                <h1 style="font-size: 3.5rem; color: var(--accent); margin: 10px 0;"><span id="res-70"></span> <span style="font-size: 1.5rem; color: var(--muted);">/ 70</span></h1>
+                <h3 style="color: var(--muted);">Percentage: <span id="res-pct"></span>%</h3>
+                
+                <div style="display: flex; gap: 15px; justify-content: center; margin-top: 20px;">
+                    <button class="btn" onclick="showScreen('screen-setup')">Restart Quiz</button>
+                    <button class="btn" style="background: transparent; border: 1px solid var(--accent); color: var(--accent);" onclick="loadHistory()">View History</button>
+                    <button class="btn" style="background: transparent; border: 1px solid var(--muted); color: var(--muted);" onclick="showScreen('screen-welcome')">Home</button>
+                </div>
+            </div>
+            <hr style="border-color: rgba(255,255,255,0.1); margin: 30px 0;">
+            <h3>Review Your Answers</h3>
+            <div id="review-container"></div>
+        </div>
+
+        <!-- 6. History Screen (NEW) -->
+        <div id="screen-history" class="card hidden">
+            <h2>Your Assessment History</h2>
+            <div id="history-container"></div>
+            <button class="btn" style="width: 100%; margin-top: 25px;" onclick="showScreen('screen-welcome')">Back to Home</button>
+        </div>
+    </div>
+
+    <script>
+        let currentUserId = null;
+        let currentQuestions = [];
+        let timerInterval;
+        let inQuiz = false;
+
+        function setCookie(name, value, days) {
+            let expires = "";
+            if (days) {
+                let date = new Date();
+                date.setTime(date.getTime() + (days * 24 * 60 * 60 * 1000));
+                expires = "; expires=" + date.toUTCString();
+            }
+            document.cookie = name + "=" + (value || "")  + expires + "; path=/";
+        }
+
+        function getCookie(name) {
+            let nameEQ = name + "=";
+            let ca = document.cookie.split(';');
+            for(let i=0;i < ca.length;i++) {
+                let c = ca[i];
+                while (c.charAt(0)==' ') c = c.substring(1,c.length);
+                if (c.indexOf(nameEQ) == 0) return c.substring(nameEQ.length,c.length);
+            }
+            return null;
+        }
+
+        function deleteCookies() {
+            document.cookie = "user_id=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;";
+            document.cookie = "user_name=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;";
+            document.cookie = "mat_no=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;";
+            location.reload();
+        }
+
+        window.onload = function() {
+            const savedUserId = getCookie("user_id");
+            const savedUserName = getCookie("user_name");
+            const savedMatNo = getCookie("mat_no");
+
+            if (savedUserId && savedUserName) {
+                currentUserId = savedUserId;
+                document.getElementById("auth-section").innerHTML = `
+                    <div style="background: rgba(56, 189, 248, 0.1); padding: 20px; border-radius: 8px; border: 1px solid var(--accent); margin-top: 20px;">
+                        <h3 style="margin-top:0;">Welcome back, ${savedUserName}! 👋</h3>
+                        <p style="color: var(--muted); font-size: 0.9rem;">Mat No: ${savedMatNo}</p>
+                        <div style="display: flex; gap: 10px; margin-top: 15px;">
+                            <button class="btn" style="flex: 1;" onclick="showScreen('screen-setup')">Start Quiz</button>
+                            <button class="btn" style="flex: 1; background: transparent; border: 1px solid var(--accent); color: var(--accent);" onclick="loadHistory()">View History</button>
+                        </div>
+                        <button class="btn" style="background: transparent; color: var(--wrong); font-size: 0.85rem; padding: 5px; margin-top: 15px; width: 100%;" onclick="deleteCookies()">Not you? Logout</button>
+                    </div>
+                `;
+            }
+        };
+
+        function showScreen(id) {
+            document.querySelectorAll('.container > div:not(.header)').forEach(el => el.classList.add('hidden'));
+            document.getElementById(id).classList.remove('hidden');
+            window.scrollTo(0,0);
+        }
+
+        async function handleAuth(e) {
+            e.preventDefault();
+            const btn = e.target.querySelector('button');
+            const errorDiv = document.getElementById('reg-error');
+            btn.disabled = true;
+            errorDiv.classList.add('hidden');
+
+            const payload = {
+                name: document.getElementById('reg-name').value,
+                department: document.getElementById('reg-dept').value,
+                mat_no: document.getElementById('reg-mat').value
+            };
+
+            try {
+                const res = await fetch('/api/auth', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload)
+                });
+                const data = await res.json();
+
+                if (data.success) {
+                    currentUserId = data.user_id;
+                    setCookie("user_id", data.user_id, 30);
+                    setCookie("user_name", data.name, 30);
+                    setCookie("mat_no", data.mat_no, 30);
+                    
+                    showScreen('screen-setup');
+                } else {
+                    errorDiv.innerText = data.error;
+                    errorDiv.classList.remove('hidden');
+                }
+            } catch (err) {
+                errorDiv.innerText = "Network Error. Try again.";
+                errorDiv.classList.remove('hidden');
+            }
+            btn.disabled = false;
+        }
+
+        async function loadHistory() {
+            if (!currentUserId) return;
+            showScreen('screen-history');
+            const container = document.getElementById('history-container');
+            container.innerHTML = '<p>Loading history...</p>';
+            
+            try {
+                const res = await fetch(`/api/history/${currentUserId}`);
+                const data = await res.json();
+                
+                if (data.history && data.history.length > 0) {
+                    let html = '<table>';
+                    html += '<tr><th>Date</th><th>Score</th><th>/ 70</th><th>%</th></tr>';
+                    
+                    data.history.forEach(item => {
+                        const date = new Date(item.timestamp).toLocaleString();
+                        html += `<tr>
+                            <td style="font-size: 0.9rem;">${date}</td>
+                            <td>${item.raw_score}/35</td>
+                            <td style="color: var(--accent); font-weight: bold;">${item.score_over_70.toFixed(1)}</td>
+                            <td>${item.percentage.toFixed(1)}%</td>
+                        </tr>`;
+                    });
+                    
+                    html += '</table>';
+                    container.innerHTML = html;
+                } else {
+                    container.innerHTML = '<p style="color: var(--muted); margin-top: 20px;">You haven\'t taken any assessments yet. Time to start practicing!</p>';
+                }
+            } catch (err) {
+                container.innerHTML = '<p style="color: var(--wrong);">Failed to load history.</p>';
+            }
+        }
+
+        async function startQuiz() {
+            const minutes = parseInt(document.getElementById('time-select').value);
+            showScreen('screen-quiz');
+            inQuiz = true;
+
+            const res = await fetch('/api/practice');
+            const data = await res.json();
+            currentQuestions = data.questions;
+
+            const container = document.getElementById('quiz-container');
+            container.innerHTML = '';
+            
+            currentQuestions.forEach((q, i) => {
+                container.innerHTML += `
+                    <div class="q-item">
+                        <div class="q-title">${i + 1}. ${q.question_text}</div>
+                        <label class="option-label"><input type="radio" name="q_${q.id}" value="A"> A. ${q.option_a}</label>
+                        <label class="option-label"><input type="radio" name="q_${q.id}" value="B"> B. ${q.option_b}</label>
+                        <label class="option-label"><input type="radio" name="q_${q.id}" value="C"> C. ${q.option_c}</label>
+                        <label class="option-label"><input type="radio" name="q_${q.id}" value="D"> D. ${q.option_d}</label>
+                    </div>
+                `;
+            });
+
+            let timeLeft = minutes * 60;
+            updateTimerDisplay(timeLeft);
+            timerInterval = setInterval(() => {
+                timeLeft--;
+                updateTimerDisplay(timeLeft);
+                if (timeLeft <= 0) {
+                    clearInterval(timerInterval);
+                    submitQuiz();
+                }
+            }, 1000);
+        }
+
+        function updateTimerDisplay(seconds) {
+            const m = Math.floor(seconds / 60).toString().padStart(2, '0');
+            const s = (seconds % 60).toString().padStart(2, '0');
+            document.getElementById('time-display').innerText = `${m}:${s}`;
+        }
+
+        async function submitQuiz() {
+            inQuiz = false;
+            clearInterval(timerInterval);
+
+            const userAnswers = {};
+            currentQuestions.forEach(q => {
+                const selected = document.querySelector(`input[name="q_${q.id}"]:checked`);
+                if (selected) userAnswers[q.id] = selected.value;
+            });
+
+            const res = await fetch('/api/submit', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ user_id: currentUserId, answers: userAnswers })
+            });
+            const data = await res.json();
+
+            document.getElementById('res-70').innerText = data.score_over_70;
+            document.getElementById('res-pct').innerText = data.percentage;
+
+            const revContainer = document.getElementById('review-container');
+            revContainer.innerHTML = '';
+            data.details.forEach((item, i) => {
+                const status = item.is_correct ? '<span class="correct">[Correct]</span>' : '<span class="wrong">[Failed]</span>';
+                revContainer.innerHTML += `
+                    <div class="q-item">
+                        <div class="q-title">${i + 1}. ${item.question_text} ${status}</div>
+                        <p><strong>You chose:</strong> ${item.user_choice ? item.options[item.user_choice] : 'Skipped'}</p>
+                        ${!item.is_correct ? `<p class="correct"><strong>Right Answer:</strong> ${item.options[item.correct_choice]}</p>` : ''}
+                    </div>
+                `;
+            });
+
+            showScreen('screen-result');
+        }
+
+        /* --- ANTI-CHEAT LOGIC --- */
+        document.addEventListener('contextmenu', e => { if(inQuiz) e.preventDefault(); });
+        document.addEventListener('copy', e => { 
+            if(inQuiz) { e.preventDefault(); showModal("Copying is disabled during the assessment."); }
+        });
+        document.addEventListener('keydown', e => {
+            if (inQuiz && e.ctrlKey && (e.key === 'c' || e.key === 't' || e.key === 'v')) {
+                e.preventDefault();
+                showModal("Shortcuts and new tabs are disabled to maintain academic integrity.");
+            }
+        });
+        document.addEventListener('visibilitychange', () => {
+            if (inQuiz && document.visibilityState === 'hidden') {
+                showModal("Warning: Leaving the active tab is prohibited. Stay on this screen.");
+            }
+        });
+
+        function showModal(text) {
+            document.getElementById('modal-text').innerText = text;
+            document.getElementById('modal-overlay').classList.remove('hidden');
+        }
+        function closeModal() {
+            document.getElementById('modal-overlay').classList.add('hidden');
+        }
+    </script>
+</body>
+</html>
