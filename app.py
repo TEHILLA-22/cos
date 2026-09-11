@@ -1,9 +1,13 @@
 import random
 import sqlite3
+import os
 from flask import Flask, jsonify, render_template, request
 
 app = Flask(__name__)
-DB_NAME = "database.db"
+if os.environ.get("VERCEL"):
+  DB_NAME = "/tmp/database.db"
+else:
+  DB_NAME = "database.db"
 
 def get_db_connection():
     conn = sqlite3.connect(DB_NAME)
