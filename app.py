@@ -1,27 +1,27 @@
-import random
-import sqlite3
 import os
+import random
+import psycopg2
+from psycopg2.extras import RealDictCursor
 from flask import Flask, jsonify, render_template, request
 
 app = Flask(__name__)
-if os.environ.get("VERCEL"):
-  DB_NAME = "/tmp/database.db"
-else:
-  DB_NAME = "database.db"
+
+# Fetch the PostgreSQL URL from Vercel environment variables
+DATABASE_URL = os.environ.get("DATABASE_URL")
 
 def get_db_connection():
-    conn = sqlite3.connect(DB_NAME)
-    conn.row_factory = sqlite3.Row
+    # Connect to PostgreSQL using the DATABASE_URL
+    conn = psycopg2.connect(DATABASE_URL, cursor_factory=RealDictCursor)
     return conn
 
 def init_db():
     conn = get_db_connection()
     cursor = conn.cursor()
 
-    # Questions Table
+    # Questions Table (PostgreSQL syntax: SERIAL instead of INTEGER AUTOINCREMENT)
     cursor.execute("""
         CREATE TABLE IF NOT EXISTS questions (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            id SERIAL PRIMARY KEY,
             chapter TEXT NOT NULL,
             question_text TEXT NOT NULL,
             option_a TEXT NOT NULL,
@@ -35,7 +35,7 @@ def init_db():
     # Users Table (Unique Mat No)
     cursor.execute("""
         CREATE TABLE IF NOT EXISTS users (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            id SERIAL PRIMARY KEY,
             name TEXT NOT NULL,
             department TEXT NOT NULL,
             mat_no TEXT UNIQUE NOT NULL
@@ -45,22 +45,24 @@ def init_db():
     # Assessments History Table
     cursor.execute("""
         CREATE TABLE IF NOT EXISTS assessments (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            id SERIAL PRIMARY KEY,
             user_id INTEGER NOT NULL,
             raw_score INTEGER NOT NULL,
             score_over_70 REAL NOT NULL,
             percentage REAL NOT NULL,
-            timestamp DATETIME DEFAULT CURRENT_TIMESTAMP,
+            timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
             FOREIGN KEY(user_id) REFERENCES users(id)
         )
     """)
 
     # Populate questions if empty
     cursor.execute("SELECT COUNT(*) FROM questions")
-    if cursor.fetchone()[0] == 0:
+    count = cursor.fetchone()
+    if count and list(count.values())[0] == 0:
         seed_questions(cursor)
 
     conn.commit()
+    cursor.close()
     conn.close()
 
 def seed_questions(cursor):
@@ -211,7 +213,7 @@ def seed_questions(cursor):
 
     cursor.executemany("""
         INSERT INTO questions (chapter, question_text, option_a, option_b, option_c, option_d, correct_answer)
-        VALUES (?, ?, ?, ?, ?, ?, ?)
+        VALUES (%s, %s, %s, %s, %s, %s, %s)
     """, sample_dataset)
 
 @app.route("/")
@@ -228,19 +230,20 @@ def auth():
     conn = get_db_connection()
     cursor = conn.cursor()
     
-    cursor.execute("SELECT id, name FROM users WHERE mat_no = ?", (mat_no,))
+    cursor.execute("SELECT id, name FROM users WHERE mat_no = %s", (mat_no,))
     user = cursor.fetchone()
     
     if user:
         user_id = user["id"]
         user_name = user["name"]
     else:
-        cursor.execute("INSERT INTO users (name, department, mat_no) VALUES (?, ?, ?)", 
+        cursor.execute("INSERT INTO users (name, department, mat_no) VALUES (%s, %s, %s) RETURNING id", 
                        (name, department, mat_no))
-        user_id = cursor.lastrowid
+        user_id = cursor.fetchone()["id"]
         user_name = name
         conn.commit()
         
+    cursor.close()
     conn.close()
     return jsonify({"success": True, "user_id": user_id, "name": user_name, "mat_no": mat_no})
 
@@ -250,6 +253,7 @@ def get_practice_session():
     cursor = conn.cursor()
     cursor.execute("SELECT id, chapter, question_text, option_a, option_b, option_c, option_d FROM questions")
     all_questions = [dict(row) for row in cursor.fetchall()]
+    cursor.close()
     conn.close()
 
     random.shuffle(all_questions)
@@ -267,14 +271,15 @@ def submit_practice():
         return jsonify({"error": "Invalid submission"}), 400
 
     question_ids = list(user_answers.keys())
-    placeholders = ",".join("?" for _ in question_ids)
+    # PostgreSQL array formatting for IN clause with %s placeholders
+    placeholders = ",".join(["%s"] * len(question_ids))
 
     conn = get_db_connection()
     cursor = conn.cursor()
     cursor.execute(f"""
         SELECT id, question_text, correct_answer, option_a, option_b, option_c, option_d 
         FROM questions WHERE id IN ({placeholders})
-    """, question_ids)
+    """, tuple(question_ids))
 
     db_records = {str(row["id"]): dict(row) for row in cursor.fetchall()}
     
@@ -301,9 +306,10 @@ def submit_practice():
     percentage = (score / total_submitted) * 100 if total_submitted > 0 else 0
     score_over_70 = (score / total_submitted) * 70 if total_submitted > 0 else 0
 
-    cursor.execute("INSERT INTO assessments (user_id, raw_score, score_over_70, percentage) VALUES (?, ?, ?, ?)",
+    cursor.execute("INSERT INTO assessments (user_id, raw_score, score_over_70, percentage) VALUES (%s, %s, %s, %s)",
                    (user_id, score, score_over_70, percentage))
     conn.commit()
+    cursor.close()
     conn.close()
 
     return jsonify({
@@ -314,7 +320,6 @@ def submit_practice():
         "details": results
     })
 
-# --- NEW ENDPOINT TO FETCH HISTORY ---
 @app.route("/api/history/<int:user_id>", methods=["GET"])
 def get_history(user_id):
     conn = get_db_connection()
@@ -322,10 +327,11 @@ def get_history(user_id):
     cursor.execute("""
         SELECT raw_score, score_over_70, percentage, timestamp 
         FROM assessments 
-        WHERE user_id = ? 
+        WHERE user_id = %s 
         ORDER BY timestamp DESC
     """, (user_id,))
     history = [dict(row) for row in cursor.fetchall()]
+    cursor.close()
     conn.close()
     return jsonify({"success": True, "history": history})
 
