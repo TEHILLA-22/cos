@@ -334,7 +334,8 @@ def get_history(user_id):
     cursor.close()
     conn.close()
     return jsonify({"success": True, "history": history})
-
+init_db()
 if __name__ == "__main__":
-    init_db()
+    
     app.run(debug=True, port=5000)
+
